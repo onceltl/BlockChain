@@ -17,7 +17,7 @@ def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay=5,loss=0):
         P2PNet = Mininet(topo=treetopo)
     elif netType == "star":
         print("star");
-        startopo = StarTopo(weight * high)
+        startopo = StarTopo(weight * high,bw=bw,delay=delay,loss=loss)
         P2PNet = Mininet(topo=startopo)
     elif netType == "net":
         print("net");

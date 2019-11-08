@@ -38,7 +38,6 @@ class NetTopo(Topo):
                 switch[(i-1)*n+k]= self.addSwitch( 's%s' % ((i-1)*n+k) )
                 for j in irange( 1, m ):
                     host = self.addHost( 's%s-h%s' %((i-1)*n+k,j) ) 
-                    print 's%s-h%s' %((i-1)*n+k,j)
                     self.addLink(host, switch[(i-1)*n+k],cls=TCLink,bw=bw,delay=delay,loss=loss)
         
         for i in irange( 1, n-1 ):
