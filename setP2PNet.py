@@ -57,7 +57,7 @@ def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay=5,loss=0,mode='test'):
         while True:
             time.sleep(60*60*24) # one day in seconds
     except KeyboardInterrupt:
-        sys.stop(0)
+        sys.exit(0)
 
 if __name__ == '__main__':
     setupP2PNet(netType='star',weight=1,high=2)
