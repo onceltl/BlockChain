@@ -51,7 +51,7 @@ def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay=5,loss=0,mode='test'):
         print(cmd)
         host.cmd(cmd)
         time.sleep(1)
-    #P2PNet.pingAll() 
+    P2PNet.pingAll() 
     #P2PNet.stop()
     try:
         while True:
@@ -60,4 +60,4 @@ def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay=5,loss=0,mode='test'):
         sys.exit(0)
 
 if __name__ == '__main__':
-    setupP2PNet(netType='star',weight=1,high=2)
+    setupP2PNet(netType='star',weight=2,high=3)

@@ -12,9 +12,18 @@ async def dealCMD(line):
     global node
     if line[0]=="sendData":
         await node.sendData()
+    elif line[0] == "showRoutTable":
+        await node.printRoutTable()
+    #TODO
+    elif line[0] == "runCMDFromFile":
+        pass
+    elif line[0] == "createTX":
+        pass
+    elif line[0] == "CheckBalances":
+        pass 
     else:
         print("pass cmd :",line[0]);
-        pass
+        pass 
 
 async def monitorCommand():
     while True:
@@ -32,7 +41,7 @@ def setUpEvent(local_addr,peer_addr,mode):
     node=P2PNode();
     node.setAddr(local_addr,peer_addr);
     node.start();
-
+    
     tasks = [
         asyncio.ensure_future(monitorCommand()),
     ]

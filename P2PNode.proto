@@ -4,10 +4,44 @@ service BlockChain {
     rpc SayHello(HelloRequest) returns (HelloReply) {}
 }
 
+service Kademlia {
+    rpc pong(pingRequest) returns (pongReply) {}
+    rpc reponseFindNode(FindNodeRequest) returns (FindNodeReply) {}
+}
+
 message HelloRequest {
     string name = 1;
 }
 
 message HelloReply {
     string message = 1;
+}
+
+message ipAddr {
+    string ip = 1;
+    uint32 port = 2;
+}
+
+message pingRequest {
+    ipAddr sendAddr = 1;
+    uint64 sendId = 2;
+    string message = 3;
+}
+
+message pongReply {
+    string message = 1;   
+}
+
+message FindNodeRequest {
+    ipAddr sendAddr = 1;
+    uint64 sendId = 2;
+    uint64 targetId = 3;
+}
+
+message nodeInfo {
+    ipAddr addr = 1;
+    uint64 id = 2;
+}
+message FindNodeReply {
+    repeated nodeInfo nodes = 1;
 }
