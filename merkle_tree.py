@@ -2,6 +2,7 @@ import crypto
 import math
 import utils
 
+
 # Node in a Merkle Tree.
 class Node:
     def __init__(self, typ, dep, val, ls = -1, rs = -1):
@@ -11,7 +12,8 @@ class Node:
         self.ls = ls
         self.rs = rs
 
-class merkle_tree:
+
+class MerkleTree:
     def __init__(self, tr_list):
         self.tr_n = len(tr_list)
         if self.tr_n == 0:
@@ -34,12 +36,8 @@ class merkle_tree:
                 self.nodes.append(Node(1, i, h, st + 2 * j, st + 2 * j + 1))
             st += 2 ** (i + 1)
         self.root = len(self.nodes) - 1
+        self.root_val = self.nodes[self.root].val
 
 
 if __name__ == "__main__":
-    t = merkle_tree([1, 2, 3])
-
-
-        
-
-
+    pass
