@@ -58,7 +58,7 @@ def verify_sig(data, sig, key_public):
 
 
 # Generate hash of data.
-def gen_hash(data):
+def get_hash(data):
     hash_engine = hashes.Hash(hashes.SHA512(), backends.default_backend())
     hash_engine.update(data)
     data_hash = hash_engine.finalize()
