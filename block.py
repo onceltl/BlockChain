@@ -1,4 +1,6 @@
 from merkle_tree import MerkleTree
+
+
 # Defination of Block
 # ts: time stamp
 class Block:
