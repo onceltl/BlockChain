@@ -14,12 +14,6 @@ class Block:
         self.addr = addr
         self.nonce = 0
     
-        for tr in tr_list:
-            self.fee += tr.fee
-        
-        # TODO: transaction in and out
-        # fee_trans = Transaction()
-        # self.tr_list = [fee_trans] + self.tr_list
         self.tr_list = tr_list
 
         mt = MerkleTree(self.tr_list)
@@ -41,14 +35,14 @@ class Block:
         print("Block:")
         print("idx: ", self.idx)
         print("ver: ", self.ver)
-        print("pre_hash: ", self.pre_hash)
+        print("pre_hash: ", self.pre_hash[:8])
         print("time_stamp: ", self.ts)
         print("fee: ", self.fee)
         print("thresh: ", self.thresh)
-        print("addr: ", self.addr)
-        print("mr_root: ", self.mt_root)
+        print("addr: ", self.addr[:8])
+        print("mr_root: ", self.mt_root[:8])
         print("nonce: ", self.nonce)
-        print("hash: ", utils.get_hash(self))
+        print("hash: ", utils.get_hash(self)[:8])
         print("Fin.")
 
 

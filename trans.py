@@ -1,3 +1,5 @@
+import time
+
 import utils
 
 class Txin:
@@ -23,18 +25,27 @@ class Transaction:
         self.ts = ts
         self.fee = fee
         
-    def sign(self, txout_idx, key_private):
+    def sign(self, key_private):
         return utils.sign(self, key_private)
+
+def gen_fee_txn(fee):
+    txin = Txin(None, None, None, None)
+    txout = Txout(None, fee)
+    return Transaction([txin], [txout], time.time(), fee)
 
 # for test
 if __name__ == "__main__":
-    txin = Txin(0, 0, 0, 0)
-    txout = Txout("addr", 1)
-    txins = [txin]
-    txouts = [txout]
-    tx = Transaction(txins, txouts, 100, 3)
-    import crypto
-    key_private = crypto.gen_key_private()
-    key_public = crypto.gen_key_public(key_private)
-    sig = tx.sign(0, key_private)
-    print(utils.verify_sig(tx, sig, key_public))
+    # txin = Txin(0, 0, 0, 0)
+    # txout = Txout("addr", 1)
+    # txins = [txin]
+    # txouts = [txout]
+    # tx = Transaction(txins, txouts, 100, 3)
+    # import crypto
+    # key_private = crypto.gen_key_private()
+    # key_public = crypto.gen_key_public(key_private)
+    # sig = tx.sign(key_private)
+    # print(utils.verify_sig(tx, sig, key_public))
+    # Test for fee transaction.
+    # ft = gen_fee_txn(1024)
+    # print(ft.txouts[0].addr)
+    pass

@@ -6,6 +6,7 @@ import threading
 import block
 import utils
 import crypto
+import trans
 
 
 class Peer:
@@ -201,12 +202,12 @@ class Service:
     def update_current_block(self):
         with self.transaction_mutex:
             self.pending_transactions.sort(key=lambda t:-t.fee)
-            # TODO: Add fee transaction
             transactions = []
             for i in range(min(len(self.pending_transactions), self.transaction_max_num)):
                 transaction = self.pending_transactions[i]
                 if self.verify_txn(transaction):
                     transactions.append(transaction)
+        
         # print("current txns: ", len(transactions))
         # for txn in transactions:
         #     print(utils.get_hash(txn)[:8])
@@ -217,13 +218,22 @@ class Service:
             else:
                 pre_hash = utils.get_hash(self.blocks[-1])
 
+        # Generate fee Transaction
+        fee = self.fee
+        for txn in transactions:
+            fee += txn.fee
+        txn_list = [trans.gen_fee_txn(fee)]
+        for txn in transactions:
+            txn_list.append(txn)
+        # print(fee)
+
         self.current_block = block.Block(
             idx = idx,
             ver = self.ver,
             pre_hash = pre_hash,
             ts = int(time.time()),
-            fee = self.fee,
-            tr_list = transactions,
+            fee = fee,
+            tr_list = txn_list,
             thresh = self.thresh,
             addr = self.addr
         )
@@ -233,16 +243,13 @@ class Service:
         with self.current_mutex:
             self.update_verified_txns()
             self.update_current_block()
-            if len(self.current_block.tr_list) == 0:
-                print("No txns to mine.")
-                return
             times = 2 ** (self.thresh * 4)
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
                 self.current_block.set_nonce(nonce)
                 if self.verify_block(self.current_block):
                     print("Mining Success!")
-                    # self.current_block.output()
+                    self.current_block.output()
                     # print(len(self.blocks))
                     with self.mutex:
                         self.blocks.append(self.current_block)
@@ -291,19 +298,19 @@ class Service:
         self.loop(1, self.mine)
         # self.loop(1, self.handle_pending)
 
-        cnt = 0
+        # cnt = 0
         while not self.exit_flag:
             time.sleep(1)
-            cnt += 1
-            if cnt == 5:
-                from trans import Txin, Txout, Transaction
-                txin = Txin(0, 0, 0, 0)
-                txout = Txout("addr", 1)
-                txins = [txin]
-                txouts = [txout]
-                tx = Transaction(txins, txouts, 100, 3)
-                tx2 = Transaction(txins, [txout, txout], 100, 3)
-                self.pending_transactions.append(tx2)
+
+            # cnt += 1
+            # if cnt == 5:
+            #     from trans import Txin, Txout, Transaction
+            #     txin = Txin(0, 0, 0, 0)
+            #     txout = Txout("addr", 1)
+            #     txins = [txin]
+            #     txouts = [txout]
+            #     tx2 = Transaction(txins, [txout, txout], 100, 3)
+            #     self.pending_transactions.append(tx2)
 
 
 if __name__ == "__main__":
@@ -324,6 +331,7 @@ if __name__ == "__main__":
     tx2 = Transaction(txins, [txout, txout], 100, 3)
 
     service.pending_transactions = [tx]
+    # print(len(service.addr))
     service.start()
     # service.mine()
     # service.update_verified_txns()
