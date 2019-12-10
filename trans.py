@@ -25,3 +25,16 @@ class Transaction:
         
     def sign(self, txout_idx, key_private):
         return utils.sign(self, key_private)
+
+# for test
+if __name__ == "__main__":
+    txin = Txin(0, 0, 0, 0)
+    txout = Txout("addr", 1)
+    txins = [txin]
+    txouts = [txout]
+    tx = Transaction(txins, txouts, 100, 3)
+    import crypto
+    key_private = crypto.gen_key_private()
+    key_public = crypto.gen_key_public(key_private)
+    sig = tx.sign(0, key_private)
+    print(utils.verify_sig(tx, sig, key_public))

@@ -39,5 +39,19 @@ class MerkleTree:
         self.root_val = self.nodes[self.root].val
 
 
+# for test
 if __name__ == "__main__":
-    pass
+    from trans import *
+    txin = Txin(0, 0, 0, 0)
+    txout = Txout("addr", 1)
+    txins = [txin]
+    txouts = [txout]
+    tx = Transaction(txins, txouts, 100, 3)
+    tr_list = [tx]
+    mt = MerkleTree(tr_list)
+    # for i in range(0, 4):
+    #     print(utils.get_hash(utils.get_hash(tr_list[2*i]) + utils.get_hash(tr_list[2*i+1])))
+    # for node in mt.nodes:
+    #     print(node.typ, node.val)
+    print(mt.root_val)
+    

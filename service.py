@@ -42,7 +42,7 @@ class Service:
         # Mine
         self.ver = 0
         self.transaction_max_num = 10
-        self.thresh = 10
+        self.thresh = 3
         self.fee = 1024
 
         # Local blocks
@@ -52,7 +52,14 @@ class Service:
         # Pending blocks
         self.pending_mutex = threading.Lock()
         self.pending_blocks = []
+
+        # Current block
+        self.current_mutex = threading.Lock()
         self.current_block = None
+
+        # Verified Txns
+        self.verified_txns_mutex = threading.Lock()
+        self.verified_txns = {}
 
 
     def get_block_num(self, peer):
@@ -61,7 +68,24 @@ class Service:
         return -1
 
 
-    def valid_block(self, blk):
+    def update_verified_txns(self):
+        with self.verified_txns_mutex:
+            self.verified_txns = {}
+            with self.mutex:
+                for blk in self.blocks:
+                    for txn in blk.tr_list:
+                        self.verified_txns[utils.get_hash(txn)] = 1
+        # print(self.verified_txns)
+
+
+    def verify_txn(self, txn):
+        # print("verify", utils.get_hash(txn), utils.get_hash(txn) in self.verified_txns)
+        if utils.get_hash(txn) in self.verified_txns:
+            return False
+        return True
+
+
+    def verify_block(self, blk):
         try:
             if not isinstance(blk, block.Block):
                 return False
@@ -97,7 +121,7 @@ class Service:
 
     # handle send_block request
     def handle_send_block(self, blk):
-        if not self.valid_block(blk):
+        if not self.verify_block(blk):
             return
         with self.mutex:
             idx = len(self.blocks)
@@ -177,13 +201,15 @@ class Service:
     def update_current_block(self):
         with self.transaction_mutex:
             self.pending_transactions.sort(key=lambda t:-t.fee)
-            t_num = 0
             # TODO: Add fee transaction
             transactions = []
-            while len(self.pending_transactions) > 0 and t_num < self.transaction_max_num:
-                transaction = self.pending_transactions.pop(0)
-                if valid_transaction(transaction):
+            for i in range(min(len(self.pending_transactions), self.transaction_max_num)):
+                transaction = self.pending_transactions[i]
+                if self.verify_txn(transaction):
                     transactions.append(transaction)
+        # print("current txns: ", len(transactions))
+        # for txn in transactions:
+        #     print(utils.get_hash(txn)[:8])
         with self.mutex:
             idx = len(self.blocks)
             if idx == 0:
@@ -202,17 +228,24 @@ class Service:
             addr = self.addr
         )
 
-
     # Mining
     def mine(self):
-        with self.mutex:
+        with self.current_mutex:
+            self.update_verified_txns()
             self.update_current_block()
-            times = 2 ** (self.thresh - 1)
+            if len(self.current_block.tr_list) == 0:
+                print("No txns to mine.")
+                return
+            times = 2 ** (self.thresh * 4)
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
                 self.current_block.set_nonce(nonce)
-                if self.valid_block(self.current_block):
-                    self.blocks.append(self.current_block)
+                if self.verify_block(self.current_block):
+                    print("Mining Success!")
+                    # self.current_block.output()
+                    # print(len(self.blocks))
+                    with self.mutex:
+                        self.blocks.append(self.current_block)
                     peer_num = min(self.peer_num, len(self.peers))
                     peers = random.sample(self.peers, peer_num)
                     for peer in peers:
@@ -223,14 +256,11 @@ class Service:
 
 
     def handle_pending(self):
-        self.pending_mutex.acquire()
-        if len(self.pending_blocks) == 0:
-            blk = None
-        else:
-            blk = self.pending_blocks.pop(0)
-        self.pending_mutex.release()
-        if blk == None:
-            return
+        with self.pending_mutex:
+            if len(self.pending_blocks) == 0:
+                return
+            else:
+                blk = self.pending_blocks.pop(0)
 
         peer_num = min(self.peer_num, len(self.peers))
         peers = random.sample(self.peers, peer_num)
@@ -251,22 +281,52 @@ class Service:
     def start(self):
         # TODO: handle P2P latency
 
-        # TODO: handle keyboard
-        # signal.signal(signal.SIGINT, self.KeyboardInterruptHandler)
+        def func(signum, frame):
+            self.exit_flag = True
+        signal.signal(signal.SIGINT, func)
 
         # TODO: prepare and start RPC server
 
-        self.loop(1, self.handle_update)
-        self.loop(0.1, self.mine)
-        self.loop(1, self.handle_pending)
+        # self.loop(1, self.handle_update)
+        self.loop(1, self.mine)
+        # self.loop(1, self.handle_pending)
 
+        cnt = 0
         while not self.exit_flag:
             time.sleep(1)
+            cnt += 1
+            if cnt == 5:
+                from trans import Txin, Txout, Transaction
+                txin = Txin(0, 0, 0, 0)
+                txout = Txout("addr", 1)
+                txins = [txin]
+                txouts = [txout]
+                tx = Transaction(txins, txouts, 100, 3)
+                tx2 = Transaction(txins, [txout, txout], 100, 3)
+                self.pending_transactions.append(tx2)
 
 
 if __name__ == "__main__":
-    # service = Service()
+    service = Service()
     # service.start()
 
-    p = Peer("127.0.0.1", 6379)
-    print(p.get_bind())
+    # p = Peer("127.0.0.1", 6379)
+    # print(p.get_bind())
+
+    # TODO: Initial Block
+
+    from trans import *
+    txin = Txin(0, 0, 0, 0)
+    txout = Txout("addr", 1)
+    txins = [txin]
+    txouts = [txout]
+    tx = Transaction(txins, txouts, 100, 3)
+    tx2 = Transaction(txins, [txout, txout], 100, 3)
+
+    service.pending_transactions = [tx]
+    service.start()
+    # service.mine()
+    # service.update_verified_txns()
+    # blk = service.current_block
+    # print(service.valid_block(blk))
+    # service.current_block.output()
