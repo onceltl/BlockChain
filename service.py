@@ -7,7 +7,7 @@ import block
 import utils
 import crypto
 import trans
-
+import P2PNode
 
 class Peer:
     def __init__(self, host, port):
@@ -25,7 +25,7 @@ class Peer:
 
 
 class Service:
-    def __init__(self):
+    def __init__(self, local_addr, peer_addr):
         # Exit
         self.exit_flag = False
 
@@ -64,6 +64,9 @@ class Service:
 
         # For testing
         self.tmp_chain = []
+
+        self.p2pnode = P2PNode.P2PNode()
+        self.p2pnode.setAddr(local_addr,peer_addr)
 
 
     def get_block_num(self, peer):
@@ -203,6 +206,8 @@ class Service:
 
     def send_block(self, peer, blk):
         # TODO: send block to peer
+        
+
         return -1
 
 
@@ -389,13 +394,25 @@ class Service:
             timer.start()
     
 
-    def start(self):
-        # TODO: handle P2P latency
-        # TODO: prepare and start RPC server
+    def update_peers(self):
+        peers = self.p2pnode.table.getNeighborhoods()
+        self.peers = peers
+        print(self.peers)
+        
 
-        self.loop(1, self.handle_update)
-        self.loop(1, self.mine)
-        # self.loop(1, self.handle_pending)
+    def start(self):
+        self.p2pnode.start()
+
+
+
+        
+        
+
+        # self.loop(1, self.handle_update)
+        # self.loop(1, self.mine)
+        # # self.loop(1, self.handle_pending)
+
+        self.loop(1, self.update_peers)
 
         while not self.exit_flag:
             tmp = input()
