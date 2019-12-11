@@ -62,6 +62,9 @@ class Service:
         self.verified_txns_mutex = threading.Lock()
         self.verified_txns = {}
 
+        # For testing
+        self.tmp_chain = []
+
 
     def get_block_num(self, peer):
         # TODO: get block num from peer
