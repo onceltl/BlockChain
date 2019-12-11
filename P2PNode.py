@@ -3,6 +3,7 @@
 
 import asyncio
 import grpc
+import block
 import P2PNode_pb2
 import P2PNode_pb2_grpc
 from concurrent import futures
@@ -34,12 +35,58 @@ class P2PNode(object):
     async def printRoutTable(self):
         print(self.table.getNeighborhoods())
 
+    async def getNeighborhoods(self):
+        return self.table.getNeighborhoods()
+
+    def send_block(peer, blk):
+        if peer.host == self.local_addr[0] and peer.port == self.local_addr[1]:
+            self.blockchain.addblk(blk)
+        else:
+            for node in self.table.getNeighborhoods():
+                if peer.host == node[0] and peer.port == node[1]:
+                    format_addr = "%s:%s" %(node[0],node[1])
+                    with grpc.insecure_channel(format_addr) as channel:
+                        stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+                        stub.GetBlock(P2PNode_pb2.SendBlock(blk=blk))
+                        
+
+    def get_block(self, peer, idx):
+        if peer.host == self.local_addr[0] and peer.port == self.local_addr[1]:
+            return self.blockchain.get_block(idx)
+        else:
+            for node in self.table.getNeighborhoods():
+                if peer.host == node[0] and peer.port == node[1]:
+                    format_addr = "%s:%s" %(node[0],node[1])
+                    with grpc.insecure_channel(format_addr) as channel:
+                        stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+                        response = stub.GetBlock(P2PNode_pb2.BlockNumRequest(idx=idx))
+                        return response.blk
+            print("response : ", -1)
+            return None
+
+    def get_block_num(self, peer):
+        if peer.host == self.local_addr[0] and peer.port == self.local_addr[1]:
+            return self.blockchain.get_block_num()
+        else:
+            for node in self.table.getNeighborhoods():
+                if peer.host == node[0] and peer.port == node[1]:
+                    format_addr = "%s:%s" %(node[0],node[1])
+                    with grpc.insecure_channel(format_addr) as channel:
+                        stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+                        response = stub.GetBlockNum(P2PNode_pb2.BlockNumRequest())
+                        return response.num
+            return -1
+
+    def update_block(remote_head, remote_blocks):
+        self.blockchain.update_block(remote_head, remote_blocks)
+
     async def sendData(self):
-        format_addr = "%s:%s" %(self.static_addr[0],self.static_addr[1])
-        with grpc.insecure_channel(format_addr) as channel:
-            stub = P2PNode_pb2_grpc.BlockChainStub(channel)
-            response = stub.SayHello(P2PNode_pb2.HelloRequest(name='czl'))
-            print("response : " + response.message)
+        for node in self.table.getNeighborhoods():
+            format_addr = "%s:%s" %(node[0],node[1])
+            with grpc.insecure_channel(format_addr) as channel:
+                stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+                response = stub.SayHello(P2PNode_pb2.HelloRequest(name='czl'))
+                print("response : " + response.message)
     
 
 

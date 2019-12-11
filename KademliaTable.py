@@ -12,18 +12,18 @@ class KademliaTable(P2PNode_pb2_grpc.KademliaServicer):
     
     def __init__(self,k=8,alpha=1,length=64):
         super(KademliaTable, self).__init__()
-        self.k=k;
+        self.k=k
         self.length=length
         self.alpha=alpha
 
-        self.id = self.random_id();
+        self.id = self.random_id()
         print("Kad_Id :",self.id)
         self.buckets = []
         for i in range(self.length+1):
-            self.buckets.append([]);
+            self.buckets.append([])
 
     def getNeighborhoods(self): #return list[ip,port]
-        peers = [];
+        peers = []
         for bucket in self.buckets:
             for item in bucket:
                 peers.append((item[0],item[1]))
@@ -90,7 +90,7 @@ class KademliaTable(P2PNode_pb2_grpc.KademliaServicer):
                 ansNode.append((self.distance(request.targetId,item[2]),item[0],item[1],item[2]))
         ansNode.sort(key=lambda x:x[0])
         response = P2PNode_pb2.FindNodeReply()
-        tot = 0;
+        tot = 0
         for node in ansNode:
             nodeinfo = response.nodes.add()
             nodeinfo.addr.ip = node[1]
@@ -120,7 +120,7 @@ class KademliaTable(P2PNode_pb2_grpc.KademliaServicer):
 
 
     def distance(self,ID,peerID):
-        return (ID ^ peerID).bit_length();
+        return (ID ^ peerID).bit_length()
 
     def setAddr(self,addr):
         self.addr=addr
