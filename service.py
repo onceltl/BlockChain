@@ -246,11 +246,14 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
 
     def send_block(self, peer, blk):
         # TODO: send block to peer
-        tmp = pickle.dumps(blk)
-        self.node.send_block(peer, tmp)
         
+        try:
+            tmp = pickle.dumps(blk)
+            self.node.send_block(peer, tmp)
+        except Exception:
+            return -1
 
-        return -1
+        return 0
 
 
 

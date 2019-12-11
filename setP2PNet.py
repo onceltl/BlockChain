@@ -22,7 +22,7 @@ def xtermCMD(peer,ip1, port1, ip2, port2, mode):
 
     name = "%s %s %d" % (name, ip1, port1)
 
-    cmd = 'xterm -hold -geometry 130x40+0+900 -title "%s" -e /home/mym/anaconda3/envs/block/bin/python -u "%s" %s &'
+    cmd = 'xterm -hold -geometry 130x40+0+900 -title "%s" -e python -u "%s" %s &'
     return cmd % (name, file, args)
 
 def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay=5,loss=0,mode='test'):
