@@ -4,7 +4,7 @@
 import asyncio
 import sys
 from P2PNode import *
-from service import *
+import service
 
 
 node =None;
@@ -39,11 +39,13 @@ async def monitorCommand():
     
 def setUpEvent(local_addr,peer_addr,mode):
 
-    
+    ser = service.Service(local_addr, peer_addr)
     
 
-    service = Service(local_addr, peer_addr)
-    service.start()
+    
+    ser.start()
+
+
     
     '''tasks = [
         asyncio.ensure_future(monitorCommand()),

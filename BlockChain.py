@@ -14,3 +14,6 @@ class BlockChain(P2PNode_pb2_grpc.BlockChainServicer):
         print("recive:",request.name)
         return P2PNode_pb2.HelloReply(message = 'hello {msg}'.format(msg = request.name))
     #TODO
+    def SendBlock(self, request, context):
+        
+        return

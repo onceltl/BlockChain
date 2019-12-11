@@ -2,12 +2,42 @@ syntax = "proto3";
 
 service BlockChain {
     rpc SayHello(HelloRequest) returns (HelloReply) {}
+    rpc GetBlockNum(BlockNumRequest) returns (BlockNumReply) {}
+    rpc GetBlock(GetBlockRequest) returns (GetBlockReply) {}
+    rpc SendBlock(SendBlockRequest) returns (SendBlockReply) {}
+
 }
 
 service Kademlia {
     rpc pong(pingRequest) returns (pongReply) {}
     rpc reponseFindNode(FindNodeRequest) returns (FindNodeReply) {}
 }
+
+message SendBlockRequest {
+    bytes blk = 1;
+}
+
+message SendBlockReply {
+    
+}
+
+message BlockNumRequest {
+
+}
+
+message BlockNumReply {
+    int32 num = 1;
+}
+
+message GetBlockRequest {
+    int32 idx = 1;
+}
+
+message GetBlockReply {
+    bytes blk = 1;
+}
+
+
 
 message HelloRequest {
     string name = 1;

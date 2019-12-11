@@ -2,12 +2,22 @@ import time
 import signal
 import random
 import threading
+import grpc
+import pickle
+import base64
 
 import block
 import utils
 import crypto
 import trans
 import P2PNode
+
+import asyncio
+import P2PNode_pb2
+import P2PNode_pb2_grpc
+from concurrent import futures
+from BlockChain import *
+from KademliaTable import * 
 
 class Peer:
     def __init__(self, host, port):
@@ -24,8 +34,19 @@ class Peer:
         self.latency = latency
 
 
-class Service:
+class Service(P2PNode_pb2_grpc.BlockChainServicer):
     def __init__(self, local_addr, peer_addr):
+        
+        # self.server = grpc.server(futures.ThreadPoolExecutor(max_workers=20))
+        # self.table = KademliaTable()
+        # P2PNode_pb2_grpc.add_KademliaServicer_to_server(self.table, self.server)
+        # self.blockchain = BlockChain()
+        # P2PNode_pb2_grpc.add_BlockChainServicer_to_server(self.blockchain, self.server)
+        
+        self.node = P2PNode.P2PNode(self)
+        self.node.setAddr(local_addr,peer_addr)
+        
+        
         # Exit
         self.exit_flag = False
 
@@ -65,18 +86,29 @@ class Service:
         # For testing
         self.tmp_chain = []
 
-        self.p2pnode = P2PNode.P2PNode()
-        self.p2pnode.setAddr(local_addr,peer_addr)
-
+        self.local_addr = local_addr
+        self.static_addr = peer_addr
+        #self.table.setAddr(local_addr)
+        
+        
+    # async def printRoutTable(self):
+    #     print(self.table.getNeighborhoods())
 
     def get_block_num(self, peer):
         # TODO: get block num from peer
         # return -1 if unreachable
         # for testing
-        if peer == "test_peer":
-            return len(self.tmp_chain)
-        return -1
+        try:
+            num = self.node.get_block_num(peer)
+        except Exception:
+            num = -1
+        # if peer == "test_peer":
+        #     return len(self.tmp_chain)
+        return num
 
+    def GetBlockNum(self, request, context):
+        block_num = len(self.blocks)
+        return P2PNode_pb2.BlockNumReply(num = block_num)
 
     def print_chain(self):
         with self.mutex:
@@ -186,32 +218,52 @@ class Service:
     def get_block(self, peer, idx):
         # TODO: get block from peer
         # blk = block.Block()
-        if peer == "test_peer":
-            if idx >= len(self.tmp_chain):
-                return None
-            blk = self.tmp_chain[idx]
+        try:
+            tmp = self.node.get_block(peer, idx)
+            blk = pickle.loads(tmp)
+        except Exception:
+            blk = None
+        #print("get:", peer, blk.idx)
+
+        # if peer == "test_peer":
+        #     if idx >= len(self.tmp_chain):
+        #         return None
+        #     blk = self.tmp_chain[idx]
         if not self.verify_block(blk):
             return None
         return blk
     
 
-    def handle_get_block(self, idx):
+    def GetBlock(self, request, context):
         try:
             with self.mutex:
-                blk = self.blocks[idx]
-            return blk
+                blk1 = self.blocks[request.idx]
+            tmp = pickle.dumps(blk1)
+            return P2PNode_pb2.GetBlockReply(blk = tmp)
         except Exception:
-            return None
+            return P2PNode_pb2.GetBlockReply(blk = 'None')
 
 
     def send_block(self, peer, blk):
         # TODO: send block to peer
+        tmp = pickle.dumps(blk)
+        self.node.send_block(peer, tmp)
         
 
         return -1
 
 
+
     # handle send_block request
+    def SendBlock(self, request, context):
+        try:
+            blk = pickle.loads(request.blk)
+        except Exception:
+            return 
+        self.handle_send_block(blk)
+        return P2PNode_pb2.SendBlockReply()
+        
+
     def handle_send_block(self, blk):
         if not self.verify_block(blk):
             return
@@ -230,6 +282,7 @@ class Service:
 
 
     def handle_update(self):
+        self.print_chain()
         with self.mutex:
             len_local = len(self.blocks)
             peer_num = min(self.peer_num, len(self.peers))
@@ -242,7 +295,6 @@ class Service:
                 if len_remote > len_local:
                     candidates.append((peer, len_remote - len_local))
             # print(candidates)
-
             max_peer = (None, 0)
             for candidate in candidates:
                 if candidate[1] > max_peer[1]:
@@ -349,7 +401,7 @@ class Service:
         with self.current_mutex:
             self.update_verified_txns()
             self.update_current_block()
-            times = 2 ** (self.thresh * 4)
+            times = 2 ** (self.thresh * 3)
             # while(True):
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
@@ -367,7 +419,7 @@ class Service:
                         if res == -1:
                             self.peers.remove(peer)
                     return
-            print("Mining Failed.")
+            #print("Mining Failed.")
             
 
 
@@ -395,24 +447,29 @@ class Service:
     
 
     def update_peers(self):
-        peers = self.p2pnode.table.getNeighborhoods()
+        peers = self.node.table.getNeighborhoods()
         self.peers = peers
-        print(self.peers)
         
 
     def start(self):
-        self.p2pnode.start()
+        #self.p2pnode.start()
+        # format_addr = "%s:%s" %(self.local_addr[0],self.local_addr[1])
+        # self.server.add_insecure_port(format_addr)
+        # self.server.start()
+        # if self.local_addr!=self.static_addr:
+        #     self.table.join(self.static_addr)
 
-
+        self.node.start()
 
         
-        
 
-        # self.loop(1, self.handle_update)
-        # self.loop(1, self.mine)
+        self.loop(1, self.handle_update)
+        self.loop(1, self.mine)
         # # self.loop(1, self.handle_pending)
 
-        self.loop(1, self.update_peers)
+        self.loop(5, self.update_peers)
+
+
 
         while not self.exit_flag:
             tmp = input()
@@ -427,6 +484,8 @@ class Service:
                 continue
             if cmd[0] == "chain":
                 self.print_chain()
+            if cmd[0] == "test":
+                self.get_block_num(self.peers[0])
 
 
         # Test for update
