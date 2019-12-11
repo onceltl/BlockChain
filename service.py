@@ -66,7 +66,29 @@ class Service:
     def get_block_num(self, peer):
         # TODO: get block num from peer
         # return -1 if unreachable
+        # for testing
+        if peer == "test_peer":
+            return len(self.tmp_chain)
         return -1
+
+
+    def print_chain(self):
+        with self.mutex:
+            if len(self.blocks) == 0:
+                return
+            print(utils.get_hash(self.blocks[0])[:8], end="")
+            for i in range(1, len(self.blocks)):
+                print("->", utils.get_hash(self.blocks[i])[:8], end="")
+            print()
+    
+    def print_blocks(self, blocks):
+        if len(blocks) == 0:
+            return
+        print(utils.get_hash(blocks[0])[:8], end="")
+        for i in range(1, len(blocks)):
+            print("->", utils.get_hash(blocks[i])[:8], end="")
+        print()
+        
 
 
     def update_verified_txns(self):
@@ -157,8 +179,13 @@ class Service:
 
     def get_block(self, peer, idx):
         # TODO: get block from peer
-        blk = block.Block()
-        self.valid_block(blk)
+        # blk = block.Block()
+        if peer == "test_peer":
+            if idx >= len(self.tmp_chain):
+                return None
+            blk = self.tmp_chain[idx]
+        if not self.verify_block(blk):
+            return None
         return blk
     
 
@@ -206,53 +233,68 @@ class Service:
                     self.peers.remove(peer)
                 if len_remote > len_local:
                     candidates.append((peer, len_remote - len_local))
+            # print(candidates)
 
-            max_peer = (-1, 0)
+            max_peer = (None, 0)
             for candidate in candidates:
                 if candidate[1] > max_peer[1]:
-                    max_peer = candidate[1]
+                    max_peer = candidate
 
-            if max_peer[0] != -1:
-                # Sync blocks to peer
-                peer = max_peer[0]
-                remote_blocks = []
-                local_tail = len(self.blocks) - 1
-                remote_head = len(self.blocks)
-                remote_tail = local_tail + max_peer[1]
+            # print(max_peer)
+            if max_peer[0] == None:
+                return
 
-                # Get remote blocks
-                for idx in range(remote_tail, remote_head, -1):
-                    remote_block = self.get_block(peer, idx)
-                    if remote_block == None:
-                        return
-                    remote_blocks.append(remote_block)
-                # Validate remote blocks
-                if len(remote_blocks) > 0:
-                    for i in range(len(remote_blocks) - 1):
-                        pre_hash = utils.get_hash(remote_blocks[i + 1])
-                        if pre_hash != remote_blocks[i].pre_hash:
-                            return
+            # Sync blocks to peer
+            peer = max_peer[0]
+            remote_blocks = []
+            local_tail = len(self.blocks) - 1
+            remote_head = len(self.blocks)
+            remote_tail = local_tail + max_peer[1]
+            # print("Update: ", peer, local_tail, remote_head, remote_tail)
 
-                while (local_tail >= 0):
-                    remote_block = self.get_block(peer, remote_head)
-                    if remote_block == None:
-                        return
-                    # Validate remote block
-                    if len(remote_blocks) > 0:
-                        pre_hash = utils.get_hash(remote_block)
-                        if pre_hash != remote_blocks[-1].pre_hash:
-                            return
-                    tail_hash = utils.get_hash(self.blocks[local_tail])
-                    if tail_hash == remote_block.pre_hash:
-                        break
-                    local_tail -= 1
-                    remote_head -= 1
-                
-                # Update local blocks
-                self.blocks = self.blocks[0:remote_head]
-                rollback_num = len(remote_blocks)
-                for i in range(rollback_num):
-                    self.blocks.append(remote_blocks[rollback_num - i - 1])
+            # Get remote blocks
+            for idx in range(remote_tail, remote_head - 1, -1):
+                remote_block = self.get_block(peer, idx)
+                if remote_block == None:
+                    return
+                remote_blocks.append(remote_block)
+
+            # Verify remote blocks
+            for i in range(len(remote_blocks) - 1):
+                pre_hash = utils.get_hash(remote_blocks[i + 1])
+                if pre_hash != remote_blocks[i].pre_hash:
+                    return
+            for blk in remote_blocks:
+                if not self.verify_block(blk):
+                    return
+
+            while (local_tail >= 0):
+                # print("Update in chain: ", local_tail)
+                # self.print_blocks(remote_blocks)
+                pre_hash = utils.get_hash(self.blocks[local_tail])
+                # print(pre_hash[:8], remote_blocks[-1].pre_hash[:8])
+                if remote_blocks[-1].pre_hash == pre_hash:
+                    break
+                # Branch
+                remote_block = self.get_block(peer, local_tail)
+                if remote_block == None:
+                    return
+                # Validate remote block
+                pre_hash = utils.get_hash(remote_block)
+                # print(pre_hash[:8], remote_blocks[-1].pre_hash[:8])
+                if pre_hash != remote_blocks[-1].pre_hash:
+                    return
+                remote_blocks.append(remote_block)
+                local_tail -= 1
+                remote_head -= 1
+            
+            # print("Update in chain: ")
+            # self.print_blocks(remote_blocks)
+            # Update local blocks
+            self.blocks = self.blocks[0:remote_head]
+            rollback_num = len(remote_blocks)
+            for i in range(rollback_num):
+                self.blocks.append(remote_blocks[rollback_num - i - 1])
 
 
     def update_current_block(self):
@@ -300,12 +342,13 @@ class Service:
             self.update_verified_txns()
             self.update_current_block()
             times = 2 ** (self.thresh * 4)
+            # while(True):
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
                 self.current_block.set_nonce(nonce)
                 if self.verify_block_nonce(self.current_block):
-                    print("Mining Success!")
-                    self.current_block.output()
+                    print("Mining Success!", utils.get_hash(self.current_block)[:8])
+                    # self.current_block.output()
                     # print(len(self.blocks))
                     with self.mutex:
                         self.blocks.append(self.current_block)
@@ -315,7 +358,9 @@ class Service:
                         res = self.send_block(peer, self.current_block)
                         if res == -1:
                             self.peers.remove(peer)
-                    break
+                    return
+            print("Mining Failed.")
+            
 
 
     def handle_pending(self):
@@ -343,31 +388,67 @@ class Service:
 
     def start(self):
         # TODO: handle P2P latency
-
-        def func(signum, frame):
-            self.exit_flag = True
-        signal.signal(signal.SIGINT, func)
-
         # TODO: prepare and start RPC server
 
-        # self.loop(1, self.handle_update)
+        self.loop(1, self.handle_update)
         self.loop(1, self.mine)
         # self.loop(1, self.handle_pending)
 
-        cnt = 0
         while not self.exit_flag:
-            time.sleep(1)
-            cnt += 1
+            tmp = input()
+            cmd = tmp.strip().split()
+            if cmd[0] == "exit":
+                self.exit_flag = True
+                continue
+            if cmd[0] == "trans":
+                if len(cmd) < 3:
+                    print("not enough parameter")
+                print(cmd)
+                continue
+            if cmd[0] == "chain":
+                self.print_chain()
 
-            if cnt == 2:
-                from trans import Txin, Txout, Transaction
-                txin = Txin(utils.get_hash(self.blocks[0].tr_list[0]), 0, self.key_public, None)
-                txout1 = Txout(None, 3)
-                txout2 = Txout(self.addr, 1022)
-                txins = [txin]
-                txouts = [txout1, txout2]
-                tx2 = Transaction(txins, txouts, 100, 3)
-                self.pending_transactions.append(tx2)
+
+        # Test for update
+        # for _ in range(5):
+        #     self.mine()
+        #     # time.sleep(1)
+        # self.print_chain()
+        
+        # self.tmp_chain = []
+        # with self.mutex:
+        #     for blk in self.blocks:
+        #         self.tmp_chain.append(blk)
+        #     self.blocks = self.blocks[:1]
+        # self.print_chain()
+        # # print(self.get_block_num("test_peer"))
+ 
+        # for _ in range(2):
+        #     self.mine()
+        #     # time.sleep(1)
+        # self.print_chain()
+        
+        # self.peers = ["test_peer"]
+        # self.handle_update()
+        # self.print_chain()
+
+        # Test for Transaction
+        # cnt = 0
+        # while not self.exit_flag:
+        #     time.sleep(1)
+        #     with self.mutex:
+        #         print(len(self.blocks))
+            # cnt += 1
+
+            # if cnt == 2:
+            #     from trans import Txin, Txout, Transaction
+            #     txin = Txin(utils.get_hash(self.blocks[0].tr_list[0]), 0, self.key_public, None)
+            #     txout1 = Txout(None, 3)
+            #     txout2 = Txout(self.addr, 1022)
+            #     txins = [txin]
+            #     txouts = [txout1, txout2]
+            #     tx2 = Transaction(txins, txouts, 100, 3)
+            #     self.pending_transactions.append(tx2)
 
 
 if __name__ == "__main__":
