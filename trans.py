@@ -28,6 +28,21 @@ class Transaction:
     def sign(self, key_private):
         return utils.sign(self, key_private)
 
+    def output(self):
+        print("Transaction:", utils.get_hash(self)[:8])
+        print("Txin:")
+        for txin in self.txins:
+            if txin.pre_tx_hash == None:
+                print("CoinBase")
+            else:
+                print(txin.pre_tx_hash[:8], ":", txin.pre_txout_idx)
+        print("Txout:")
+        for txout in self.txouts:
+            if txout.addr == None:
+                print("Coinbase", txout.val)
+            else:
+                print(txout.addr[:8], txout.val)
+
 def gen_fee_txn(fee):
     txin = Txin(None, None, None, None)
     txout = Txout(None, fee)

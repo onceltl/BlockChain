@@ -71,22 +71,73 @@ class Service:
 
     def update_verified_txns(self):
         with self.verified_txns_mutex:
-            self.verified_txns = {}
+            self.verified_txout_used = {}
+            self.verified_txout = {}
             with self.mutex:
                 for blk in self.blocks:
                     for txn in blk.tr_list:
-                        self.verified_txns[utils.get_hash(txn)] = 1
+                        self.verified_txout_used[utils.get_hash(txn)] = [False] * len(txn.txouts)
+                        self.verified_txout[utils.get_hash(txn)] = txn.txouts
+                        for txin in txn.txins:
+                            if not txin.pre_tx_hash == None:
+                                self.verified_txout_used[txin.pre_tx_hash][txin.pre_txout_idx] = True
         # print(self.verified_txns)
 
 
     def verify_txn(self, txn):
-        # print("verify", utils.get_hash(txn), utils.get_hash(txn) in self.verified_txns)
-        if utils.get_hash(txn) in self.verified_txns:
+        # verify inside txn same txin
+        txin_map = {}
+        for txin in txn.txins:
+            tmp1 = txin.pre_tx_hash
+            tmp2 = txin.pre_txout_idx
+            if tmp1 in txin_map and tmp2 in txin_map[tmp1]:
+                print("Verification Failed: same txin.")
+                txn.output()
+                return False
+            if tmp1 not in txin_map:
+                txin_map[tmp1] = {}
+            txin_map[tmp1][tmp2] = 1
+
+        # verify txin in block chain
+        for idx in range(len(txn.txins)):
+            txin = txn.txins[idx]
+            if not txin.pre_tx_hash in self.verified_txout:
+                print("Verification Failed: pre_txn hash not existed.")
+                print("pre_tx_hash:", txin.pre_tx_hash)
+                txn.output()
+                return False
+            pre_txout_map = self.verified_txout_used[txin.pre_tx_hash]
+            if txin.pre_txout_idx >= len(pre_txout_map):
+                print("Verification Failed: pre_idx hash not existed.")
+                print("pre_txout_idx:", txin.pre_txout_idx)
+                txn.output()
+                return False
+            if pre_txout_map[txin.pre_txout_idx] == True:
+                print("Verification Failed: pre_txout used.")
+                txn.output()
+                return False
+
+        # verify tot in and out
+        totin = 0
+        totout = 0
+        fee_flag = False
+        for txin in txn.txins:
+            if txin.pre_tx_hash != None:
+                totin += self.verified_txout[txin.pre_tx_hash][txin.pre_txout_idx].val
+            else:
+                fee_flag = True
+        for txout in txn.txouts:
+#            if txout.addr != None:
+            totout += txout.val
+        if totin != totout:
+            print("Verification Failed: in and out don't match.", totin, totout)
             return False
+
+        print("Verification Succeed!", fee_flag, totin, totout)
+
         return True
 
-
-    def verify_block(self, blk):
+    def verify_block_nonce(self, blk):
         try:
             if not isinstance(blk, block.Block):
                 return False
@@ -97,6 +148,11 @@ class Service:
             return True
         except Exception:
             return False
+
+
+    # TODO: verify block.
+    def verify_block(self, blk):
+        return self.verify_block_nonce(blk)
 
 
     def get_block(self, peer, idx):
@@ -247,7 +303,7 @@ class Service:
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
                 self.current_block.set_nonce(nonce)
-                if self.verify_block(self.current_block):
+                if self.verify_block_nonce(self.current_block):
                     print("Mining Success!")
                     self.current_block.output()
                     # print(len(self.blocks))
@@ -298,19 +354,20 @@ class Service:
         self.loop(1, self.mine)
         # self.loop(1, self.handle_pending)
 
-        # cnt = 0
+        cnt = 0
         while not self.exit_flag:
             time.sleep(1)
+            cnt += 1
 
-            # cnt += 1
-            # if cnt == 5:
-            #     from trans import Txin, Txout, Transaction
-            #     txin = Txin(0, 0, 0, 0)
-            #     txout = Txout("addr", 1)
-            #     txins = [txin]
-            #     txouts = [txout]
-            #     tx2 = Transaction(txins, [txout, txout], 100, 3)
-            #     self.pending_transactions.append(tx2)
+            if cnt == 2:
+                from trans import Txin, Txout, Transaction
+                txin = Txin(utils.get_hash(self.blocks[0].tr_list[0]), 0, self.key_public, None)
+                txout1 = Txout(None, 3)
+                txout2 = Txout(self.addr, 1022)
+                txins = [txin]
+                txouts = [txout1, txout2]
+                tx2 = Transaction(txins, txouts, 100, 3)
+                self.pending_transactions.append(tx2)
 
 
 if __name__ == "__main__":
@@ -320,17 +377,15 @@ if __name__ == "__main__":
     # p = Peer("127.0.0.1", 6379)
     # print(p.get_bind())
 
-    # TODO: Initial Block
+    # from trans import Txin, Txout, Transaction
+    # txin = Txin("aaaaaaaa", 3, 0, 0)
+    # txout = Txout("addr", 1)
+    # txins = [txin]
+    # txouts = [txout]
+    # tx = Transaction(txins, txouts, 100, 3)
+    # tx2 = Transaction(txins, [txout, txout], 100, 3)
 
-    from trans import *
-    txin = Txin(0, 0, 0, 0)
-    txout = Txout("addr", 1)
-    txins = [txin]
-    txouts = [txout]
-    tx = Transaction(txins, txouts, 100, 3)
-    tx2 = Transaction(txins, [txout, txout], 100, 3)
-
-    service.pending_transactions = [tx]
+    # service.pending_transactions = [tx]
     # print(len(service.addr))
     service.start()
     # service.mine()

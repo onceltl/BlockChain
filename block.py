@@ -32,13 +32,8 @@ class Block:
 
     
     def output(self):
-        print("Block:")
-        print("idx: ", self.idx)
-        print("ver: ", self.ver)
+        print("Block:", self.idx, "ver: ", self.ver, "time_stamp: ", self.ts, "fee", self.fee, "thresh", self.thresh)
         print("pre_hash: ", self.pre_hash[:8])
-        print("time_stamp: ", self.ts)
-        print("fee: ", self.fee)
-        print("thresh: ", self.thresh)
         print("addr: ", self.addr[:8])
         print("mr_root: ", self.mt_root[:8])
         print("nonce: ", self.nonce)
