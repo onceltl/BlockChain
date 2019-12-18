@@ -25,7 +25,7 @@ def xtermCMD(peer,ip1, port1, ip2, port2, mode):
     cmd = 'xterm -hold -geometry 130x40+0+900 -title "%s" -e python -u "%s" %s &'
     return cmd % (name, file, args)
 
-def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay=5,loss=0,mode='test'):
+def setupP2PNet(netType="net",weight=1,high=1,bw=10,delay='0ms',loss=0,mode='test'):
     global P2PNet
     if netType == "circle":
         print("circle");
@@ -126,6 +126,6 @@ class NetworkCMD(Cmd):
                 print("Deleted %s" %hostName)
                 
 if __name__ == '__main__':
-    setupP2PNet(netType='star',weight=3,high=2)
+    setupP2PNet(netType='star',weight=4,high=4)
     myCmd = NetworkCMD()
     myCmd.cmdloop()

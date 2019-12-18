@@ -5,6 +5,7 @@ service BlockChain {
     rpc GetBlockNum(BlockNumRequest) returns (BlockNumReply) {}
     rpc GetBlock(GetBlockRequest) returns (GetBlockReply) {}
     rpc SendBlock(SendBlockRequest) returns (SendBlockReply) {}
+    rpc SendPreAndNewHash(SendPreAndNewHashRequest) returns (SendPreAndNewHashReply) {}
 
 }
 
@@ -35,6 +36,15 @@ message GetBlockRequest {
 
 message GetBlockReply {
     bytes blk = 1;
+}
+
+message SendPreAndNewHashRequest {
+    bytes blk1 = 1;
+    bytes blk2 = 2;
+}
+
+message SendPreAndNewHashReply {
+
 }
 
 

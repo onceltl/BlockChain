@@ -68,5 +68,12 @@ class P2PNode(object):
 
             return 
  
+    def send_pre_and_new_hash(self, node, blk1, blk2):
+        format_addr = "%s:%s" %(node[0],node[1])
+        with grpc.insecure_channel(format_addr) as channel:
+            stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+            response = stub.SendPreAndNewHash(P2PNode_pb2.SendPreAndNewHashRequest(blk1 = blk1, blk2 = blk2))
+            return
+
      
 

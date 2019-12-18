@@ -52,7 +52,7 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
 
         # Peers
         self.peers = []
-        self.peer_num = 3
+        self.peer_num = 100
 
         # Transaction
         self.key_private = crypto.gen_key_private()
@@ -64,7 +64,7 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         # Mine
         self.ver = 0
         self.transaction_max_num = 10
-        self.thresh = 3
+        self.thresh = 4
         self.fee = 1024
 
         # Local blocks
@@ -89,6 +89,10 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         self.local_addr = local_addr
         self.static_addr = peer_addr
         #self.table.setAddr(local_addr)
+
+        #father_hash & son_hasn
+        self.hash_dict = {}
+        self.history_branch_num = 0
         
         
     # async def printRoutTable(self):
@@ -283,9 +287,47 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
             self.blocks.append(blk)
         return
 
+    def insert_hash_pairs(self, hash1, hash2):
+        if hash1 == hash2: #first block
+            hash1 = "root"
+        if hash1 in self.hash_dict:
+            if len(self.hash_dict[hash1]) == 1:
+                self.history_branch_num = self.history_branch_num + 1
+            self.hash_dict[hash1].append(hash2)
+            print("branch num = ", self.history_branch_num, "/", len(self.blocks))
+        else:
+            self.hash_dict[hash1] = [hash2]
+        
+            
+
+    def send_pre_and_new_hash(self, peer, pre_block, current_block):
+        if peer == None:
+            return 0
+        if self.local_addr[0] == "10.0.0.1":
+            hash1 = utils.get_hash(pre_block)
+            hash2 = utils.get_hash(current_block)
+            #print("hash = ", hash1[:8], hash2[:8])
+            self.insert_hash_pairs(hash1, hash2)
+            return 0
+        
+        blk1 = pickle.dumps(pre_block)
+        blk2 = pickle.dumps(current_block)
+        self.node.send_pre_and_new_hash(peer, blk1, blk2)
+
+        return 0
+
+    def SendPreAndNewHash(self, request, context):
+        blk1 = pickle.loads(request.blk1)
+        blk2 = pickle.loads(request.blk2)
+        hash1 = utils.get_hash(blk1)
+        hash2 = utils.get_hash(blk2)
+        #print("hash = ", hash1[:8], hash2[:8])
+        self.insert_hash_pairs(hash1, hash2)
+        return P2PNode_pb2.SendPreAndNewHashReply()
+
 
     def handle_update(self):
-        self.print_chain()
+        #self.print_chain()
         with self.mutex:
             len_local = len(self.blocks)
             peer_num = min(self.peer_num, len(self.peers))
@@ -339,6 +381,7 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
                 if remote_blocks[-1].pre_hash == pre_hash:
                     break
                 # Branch
+                print("Branch!!!!!!!!")
                 remote_block = self.get_block(peer, local_tail)
                 if remote_block == None:
                     return
@@ -399,6 +442,15 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
             addr = self.addr
         )
 
+    def get_master_peer(self):
+        if self.local_addr[0] == "10.0.0.1":
+            return self.local_addr
+        for peer in self.peers:
+            if (peer[0] == "10.0.0.1"):
+                return peer
+        print("No Master Found!")
+        return None
+
     # Mining
     def mine(self):
         with self.current_mutex:
@@ -421,6 +473,11 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
                         res = self.send_block(peer, self.current_block)
                         if res == -1:
                             self.peers.remove(peer)
+                    if len(self.blocks) == 1:
+                        res = self.send_pre_and_new_hash(self.get_master_peer(), self.blocks[-1], self.blocks[-1])
+                    else:
+                        res = self.send_pre_and_new_hash(self.get_master_peer(), self.blocks[-2], self.blocks[-1])
+                    assert(res != -1)
                     return
             #print("Mining Failed.")
             
