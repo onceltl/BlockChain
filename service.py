@@ -5,6 +5,7 @@ import threading
 import grpc
 import pickle
 import base64
+import random
 
 import block
 import utils
@@ -89,6 +90,20 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         self.local_addr = local_addr
         self.static_addr = peer_addr
         #self.table.setAddr(local_addr)
+
+        self.remote_rand_hash = {}
+        self.remote_rand_num = {}
+
+        self.rand_hash = None
+        self.rand_num = None
+
+        self.bitcoin = {}
+        #assume the init bitcoin of each node is id * 2
+        for i in range(utils.node_num):
+            id = i + 1
+            self.bitcoin[id] = 20 + id * 2
+        
+        self.round = 0
         
         
     # async def printRoutTable(self):
@@ -213,6 +228,34 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
     # TODO: verify block.
     def verify_block(self, blk):
         return self.verify_block_nonce(blk)
+
+    def get_remote_hash(self, peer, round):
+        #try:
+        res = self.node.get_remote_hash(peer, round)
+        if res == "None":
+            return -2
+        return res
+        #except Exception:
+        #    return -1
+
+    def GetRemoteHash(self, request, context):
+        if request.round == self.round and self.rand_hash != None:
+            return P2PNode_pb2.RemoteHashReply(hash = self.rand_hash)
+        else:
+            return P2PNode_pb2.RemoteHashReply(hash = "None")
+
+    def get_remote_num(self, peer, round):
+        try:
+            res = self.node.get_remote_num(peer, round)
+            return res
+        except Exception:
+            return -1
+
+    def GetRemoteNum(self, request, context):
+        if request.round == self.round and self.rand_num != None:
+            return P2PNode_pb2.RemoteNumReply(num = self.rand_num)
+        else:
+            return P2PNode_pb2.RemoteNumReply(num = -2)
 
 
     def get_block(self, peer, idx):
@@ -399,12 +442,15 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
             addr = self.addr
         )
 
+    def get_peer_id(self, peer):
+        return int(peer[0].split(".")[-1])
+
     # Mining
     def mine(self):
         with self.current_mutex:
             self.update_verified_txns()
             self.update_current_block()
-            times = 2 ** (self.thresh * 3)
+            """times = 2 ** (self.thresh * 3)
             # while(True):
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
@@ -421,8 +467,66 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
                         res = self.send_block(peer, self.current_block)
                         if res == -1:
                             self.peers.remove(peer)
-                    return
+                    return"""
             #print("Mining Failed.")
+
+            self.rand_hash = None
+            self.rand_num = None
+            self.remote_rand_hash = {}
+            self.remote_rand_num = {}
+            while len(self.peers) != utils.node_num - 1:
+                self.update_peers()
+            self.rand_num = random.randint(0, 1023)
+            self.rand_hash = utils.get_hash(self.rand_num)
+            self.round = self.round + 1
+            remote_hash_num = 0
+            while remote_hash_num != utils.node_num - 1:
+                for peer in self.peers:
+                    id = self.get_peer_id(peer)
+                    if not id in self.remote_rand_hash:
+                        res = self.get_remote_hash(peer, self.round)
+                        if res == -1:
+                            print("get remote hash failed?")
+                        elif res == -2: #remote is None
+                            pass
+                        else:
+                            self.remote_rand_hash[id] = res
+                            remote_hash_num = remote_hash_num + 1
+
+            remote_rand_num = 0
+            while remote_rand_num != utils.node_num - 1:
+                for peer in self.peers:
+                    id = self.get_peer_id(peer)
+                    if not id in self.remote_rand_num:
+                        res = self.get_remote_num(peer, self.round)
+                        if res == -1:
+                            print("get remote num failed")
+                        elif res == -2: #remote is None
+                            pass
+                        else:
+                            #verify
+                            rand_hash = utils.get_hash(res)
+                            if rand_hash != self.remote_rand_hash[id]:
+                                print("Verify failed!!!!!!!")
+                                #TODO : verify failed
+                            self.remote_rand_num[id] = res
+                            remote_rand_num = remote_rand_num + 1
+            
+            global_rand_num = self.rand_num
+            for id in self.remote_rand_num:
+                global_rand_num = global_rand_num ^ self.remote_rand_num[id]
+            
+            winner_id = self.get_peer_id(self.local_addr)
+            winner_num = global_rand_num % self.bitcoin[winner_id]
+            for peer in self.peers:
+                id = self.get_peer_id(peer)
+                tmp_num = global_rand_num % self.bitcoin[id]
+                if tmp_num > winner_num or (tmp_num == winner_num and id < winner_id):
+                    winner_id = id
+                    winner_num = tmp_num
+            #print("Winner = ", winner_id, winner_num)
+            self.bitcoin[winner_id] = self.bitcoin[winner_id] + 1
+            print(self.bitcoin)
             
 
 
@@ -467,10 +571,10 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         
 
         self.loop(1, self.handle_update)
-        self.loop(1, self.mine)
+        self.loop(5, self.mine)
         # # self.loop(1, self.handle_pending)
 
-        self.loop(5, self.update_peers)
+        self.loop(2, self.update_peers)
 
 
 

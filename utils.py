@@ -1,6 +1,7 @@
 import pickle
 import crypto
 
+node_num = 5
 
 def sign(data, key_private):
     if type(data) == bytes:

@@ -50,6 +50,21 @@ class P2PNode(object):
             response = stub.GetBlockNum(P2PNode_pb2.BlockNumRequest())
             return response.num
 
+    def get_remote_hash(self, node, round):
+        format_addr = "%s:%s" %(node[0],node[1])
+        with grpc.insecure_channel(format_addr) as channel:
+            stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+            response = stub.GetRemoteHash(P2PNode_pb2.RemoteHashRequest(round=round))
+            return response.hash
+
+    def get_remote_num(self, node, round):
+        format_addr = "%s:%s" %(node[0],node[1])
+        with grpc.insecure_channel(format_addr) as channel:
+            stub = P2PNode_pb2_grpc.BlockChainStub(channel)
+            response = stub.GetRemoteNum(P2PNode_pb2.RemoteNumRequest(round=round))
+            return response.num
+
+
     
     
     def get_block(self, node, idx):

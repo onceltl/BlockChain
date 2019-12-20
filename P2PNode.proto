@@ -5,7 +5,8 @@ service BlockChain {
     rpc GetBlockNum(BlockNumRequest) returns (BlockNumReply) {}
     rpc GetBlock(GetBlockRequest) returns (GetBlockReply) {}
     rpc SendBlock(SendBlockRequest) returns (SendBlockReply) {}
-
+    rpc GetRemoteHash(RemoteHashRequest) returns (RemoteHashReply) {}
+    rpc GetRemoteNum(RemoteNumRequest) returns (RemoteNumReply) {}
 }
 
 service Kademlia {
@@ -26,6 +27,22 @@ message BlockNumRequest {
 }
 
 message BlockNumReply {
+    int32 num = 1;
+}
+
+message RemoteHashRequest{
+    int32 round = 1;
+}
+
+message RemoteHashReply{
+    string hash = 1;
+}
+
+message RemoteNumRequest{
+    int32 round = 1;
+}
+
+message RemoteNumReply{
     int32 num = 1;
 }
 
