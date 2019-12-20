@@ -1,6 +1,9 @@
 import pickle
 import crypto
 
+weight = 4
+high = 5
+confirm_len = 6
 
 def sign(data, key_private):
     if type(data) == bytes:

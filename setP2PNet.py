@@ -9,6 +9,7 @@ from mininet.topolib import TreeTopo
 from mininet.link import Link
 from CustomTopo import *
 from cmd import Cmd
+import utils
 
 P2PNet=None
 defaultPort = 50000
@@ -126,6 +127,6 @@ class NetworkCMD(Cmd):
                 print("Deleted %s" %hostName)
                 
 if __name__ == '__main__':
-    setupP2PNet(netType='star',weight=3,high=2)
+    setupP2PNet(netType='star',weight=utils.weight,high=utils.high)
     myCmd = NetworkCMD()
     myCmd.cmdloop()

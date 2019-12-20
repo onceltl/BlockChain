@@ -52,7 +52,7 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
 
         # Peers
         self.peers = []
-        self.peer_num = 3
+        self.peer_num = 300
 
         # Transaction
         self.key_private = crypto.gen_key_private()
@@ -64,7 +64,7 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         # Mine
         self.ver = 0
         self.transaction_max_num = 10
-        self.thresh = 3
+        self.thresh = 4
         self.fee = 1024
 
         # Local blocks
@@ -89,6 +89,8 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         self.local_addr = local_addr
         self.static_addr = peer_addr
         #self.table.setAddr(local_addr)
+
+        self.max_blk_num = 0
         
         
     # async def printRoutTable(self):
@@ -114,9 +116,11 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
         with self.mutex:
             if len(self.blocks) == 0:
                 return
-            print(utils.get_hash(self.blocks[0])[:8], end="")
+            #print(utils.get_hash(self.blocks[0])[:8], end="")
+            print(self.blocks[0].evil, end="")
             for i in range(1, len(self.blocks)):
-                print("->", utils.get_hash(self.blocks[i])[:8], end="")
+                #print("->", utils.get_hash(self.blocks[i])[:8], end="")
+                print("->", self.blocks[i].evil, end="")
             print()
     
     def print_blocks(self, blocks):
@@ -283,29 +287,79 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
             self.blocks.append(blk)
         return
 
+    def get_evil_blk_num(self):
+        evil_blk_num = 0
+        for i in range(len(self.blocks)):
+            if self.blocks[-i-1].evil == True:
+                evil_blk_num = evil_blk_num + 1
+            else:
+                break
+        return evil_blk_num
+
+
+    def is_evil_node(self, peer):
+        id = int(peer[0].split(".")[-1])
+        node_num = utils.weight * utils.high
+        return (id <= 15)
+
 
     def handle_update(self):
-        self.print_chain()
+        #self.print_chain()
+        print("len = ", len(self.blocks))
         with self.mutex:
             len_local = len(self.blocks)
             peer_num = min(self.peer_num, len(self.peers))
             peers = random.sample(self.peers, peer_num)
             candidates = []
+            evil_node = self.is_evil_node(self.local_addr)
             for peer in peers:
                 len_remote = self.get_block_num(peer)
                 if len_remote == -1:
                     self.peers.remove(peer)
-                if len_remote > len_local:
-                    candidates.append((peer, len_remote - len_local))
+                if evil_node == self.is_evil_node(peer):
+                    if len_remote > len_local:
+                        candidates.append((peer, len_remote - len_local))
+                else:
+                    if len_remote > self.max_blk_num:
+                        self.max_blk_num = len_remote
             # print(candidates)
             max_peer = (None, 0)
+            """max_evil_peer = (None, 0)
+
+            if self.is_evil_node(self.local_addr):
+                for candidate in candidates:
+                    if candidate[1] > max_peer[1] or (candidate[1] == max_peer[1] and candidate[2] == True):
+                        max_peer = candidate
+            else:
+                for candidate in candidates:
+                    if candidate[1] > max_peer[1] or (candidate[1] == max_peer[1] and candidate[2] == False):
+                        max_peer = candidate
+            
+            if self.is_evil_node(self.local_addr):
+                for candidate in candidates:
+                    if candidate[2] == False and candidate[1] > max_evil_peer[1]:
+                        max_evil_peer = candidate
+            """
             for candidate in candidates:
                 if candidate[1] > max_peer[1]:
                     max_peer = candidate
 
             # print(max_peer)
             if max_peer[0] == None:
+                if evil_node == False and self.max_blk_num >= len(self.blocks) + utils.confirm_len:
+                    print("Attack Success!  ", self.max_blk_num)
                 return
+            
+            """
+            if self.is_evil_node(self.local_addr):
+                evil_blk_num = self.get_evil_blk_num()
+                if max_evil_peer[0] == None and max_peer[1] + evil_blk_num < utils.confirm_len:
+                    return
+                if max_evil_peer[0] != None and max_peer[1] + evil_blk_num < utils.confirm_len:
+                    max_peer = max_evil_peer
+                if not self.is_evil_node(max_peer[0]):
+                    print("Attack Failed!")
+            """
 
             # Sync blocks to peer
             peer = max_peer[0]
@@ -358,6 +412,9 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
             rollback_num = len(remote_blocks)
             for i in range(rollback_num):
                 self.blocks.append(remote_blocks[rollback_num - i - 1])
+            if self.is_evil_node(self.local_addr) and len(self.blocks) >= self.max_blk_num + utils.confirm_len:
+                print("Attack Success!  ", len(self.blocks), self.max_blk_num)
+
 
 
     def update_current_block(self):
@@ -406,21 +463,32 @@ class Service(P2PNode_pb2_grpc.BlockChainServicer):
             self.update_current_block()
             times = 2 ** (self.thresh * 3)
             # while(True):
+            evil_node = self.is_evil_node(self.local_addr)
             for _ in range(times):
                 nonce = int(random.random() * pow(2, 64))
                 self.current_block.set_nonce(nonce)
+                if evil_node or len(self.blocks) > 0 and self.blocks[-1].evil == True:
+                    self.current_block.set_evil(True)
+                else:
+                    self.current_block.set_evil(False)
                 if self.verify_block_nonce(self.current_block):
                     print("Mining Success!", utils.get_hash(self.current_block)[:8])
                     # self.current_block.output()
                     # print(len(self.blocks))
+                    
+                    evil_blk_num = self.get_evil_blk_num()
+                    if evil_node == True and len(self.blocks) + 1 >= self.max_blk_num + utils.confirm_len:
+                        print("Attack Success!  ", len(self.blocks) + 1, self.max_blk_num)
+
                     with self.mutex:
                         self.blocks.append(self.current_block)
                     peer_num = min(self.peer_num, len(self.peers))
                     peers = random.sample(self.peers, peer_num)
                     for peer in peers:
-                        res = self.send_block(peer, self.current_block)
-                        if res == -1:
-                            self.peers.remove(peer)
+                        if self.is_evil_node(peer) == evil_node:
+                            res = self.send_block(peer, self.current_block)
+                            if res == -1:
+                                self.peers.remove(peer)
                     return
             #print("Mining Failed.")
             

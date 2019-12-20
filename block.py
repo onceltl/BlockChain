@@ -21,6 +21,8 @@ class Block:
             self.mt_root = mt.root_val
         else:
             self.mt_root = utils.get_hash(None)
+
+        self.evil = False
     
 
     def set_nonce(self, nonce):
@@ -29,6 +31,9 @@ class Block:
     
     def set_ts(self, ts):
         self.ts = ts
+    
+    def set_evil(self, e):
+        self.evil = e
 
     
     def output(self):
